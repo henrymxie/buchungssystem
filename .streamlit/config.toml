@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#004b87"    # Ein klassisches Enterprise-Blau
+backgroundColor = "#f8f9fa" # Sehr helles Grau statt reinem Weiß
+secondaryBackgroundColor = "#ffffff" # Weiße Karten/Container
+textColor = "#212529"       # Dunkles Grau-Schwarz für bessere Lesbarkeit
+font = "sans serif"
