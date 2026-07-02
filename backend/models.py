@@ -66,3 +66,11 @@ class OffenePostenErgebnis(BaseModel):
     offene_forderungen: float
     offene_verbindlichkeiten: float
     anzahl_offen: int
+
+class LoginDaten(BaseModel):
+    benutzername: str
+    passwort: str
+
+class LoginErgebnis(BaseModel):
+    erfolg: bool
+    rolle: str | None = None

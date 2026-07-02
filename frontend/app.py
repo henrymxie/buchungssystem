@@ -3,8 +3,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import streamlit as st
+import os
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
 # 1. Wide Layout: Nutzt den gesamten Bildschirm
 st.set_page_config(page_title="Buchungssystem", page_icon="📒", layout="wide")
@@ -35,18 +36,23 @@ if not st.session_state.angemeldet:
             st.title("🔒 Login")
             benutzername = st.text_input("Benutzername")
             passwort = st.text_input("Passwort", type="password")
-            
+
             if st.button("Anmelden", use_container_width=True):
-                if benutzername == "admin" and passwort == "admin123":
-                    st.session_state.angemeldet = True
-                    st.session_state.rolle = "Admin"
-                    st.rerun()
-                elif benutzername == "user" and passwort == "user123":
-                    st.session_state.angemeldet = True
-                    st.session_state.rolle = "User"
-                    st.rerun()
+                try:
+                    antwort = requests.post(
+                        f"{API_URL}/login",
+                        json={"benutzername": benutzername, "passwort": passwort},
+                    )
+                    ergebnis = antwort.json()
+                except requests.exceptions.ConnectionError:
+                    st.error("Backend nicht erreichbar – läuft der Server?")
                 else:
-                    st.error("Falscher Benutzername oder Passwort.")
+                    if ergebnis["erfolg"]:
+                        st.session_state.angemeldet = True
+                        st.session_state.rolle = ergebnis["rolle"]
+                        st.rerun()
+                    else:
+                        st.error("Falscher Benutzername oder Passwort.")
     st.stop()
 
 # ---------------------------------------------------------------
@@ -76,22 +82,22 @@ st.divider()
 # Admin-Ansicht (Voller Zugriff mit Tabs)
 # ---------------------------------------------------------------
 if st.session_state.rolle == "Admin":
-    
+
     # Tabs für eine aufgeräumte Navigation anlegen
     tab_uebersicht, tab_dashboard, tab_guv, tab_forecast, tab_bilanz, tab_analysen = st.tabs([
-        "📝 Erfassen & Übersicht", 
+        "📝 Erfassen & Übersicht",
         "💹 Dashboard",
-        "📊 GuV-Auswertung", 
+        "📊 GuV-Auswertung",
         "🔮 30-Tage Forecast",
         "📈 Bilanz",
         "🔍 Analysen",
     ])
-    
+
     # --- TAB 1: EINGABE & TABELLE ---
     with tab_uebersicht:
         # Bildschirm teilen: Links 1/3 (Formular), Rechts 2/3 (Tabelle)
         col_form, col_table = st.columns([1, 2])
-        
+
         with col_form:
             st.subheader("Neue Buchung")
             with st.container(border=True):
@@ -112,9 +118,10 @@ if st.session_state.rolle == "Admin":
                     antwort = requests.post(f"{API_URL}/buchungen", json=daten)
                     if antwort.status_code == 200:
                         st.toast("Buchung erfolgreich gespeichert!")
+                        st.rerun()
                     else:
                         st.error(f"Fehler: {antwort.text}")
-                        
+
         with col_table:
             st.subheader("Alle Buchungen")
             buchungen = requests.get(f"{API_URL}/buchungen").json()
@@ -123,6 +130,73 @@ if st.session_state.rolle == "Admin":
                 st.dataframe(pd.DataFrame(buchungen), width='stretch', hide_index=True)
             else:
                 st.info("Noch keine Buchungen erfasst.")
+
+        # ---------------------------------------------------------------
+        # NEU: Buchung bearbeiten oder löschen
+        # ---------------------------------------------------------------
+        st.divider()
+        st.subheader("✏️ Buchung bearbeiten oder löschen")
+
+        if buchungen:
+            # Auswahl-Liste: lesbarer Text  ->  komplette Buchung (als Dict)
+            optionen = {
+                f"ID {b['id']} · {b['typ']} · {b['betrag']:.2f} € · {b['beschreibung']}": b
+                for b in buchungen
+            }
+            auswahl = st.selectbox("Welche Buchung möchtest du bearbeiten?", list(optionen.keys()))
+            gewaehlt = optionen[auswahl]   # die komplette Buchung, die gerade ausgewählt ist
+
+            # Feste Auswahllisten (wie im Anlege-Formular)
+            TYPEN = ["Einnahme", "Ausgabe"]
+            KONTEN = ["Bank", "Kasse", "Eigenkapital", "Verbindlichkeit"]
+            KOSTENSTELLEN = ["Vertrieb", "Marketing", "IT", "Verwaltung", "Beratung", "Betrieb", "Schulung"]
+
+            def _pos(liste, wert):
+                # Findet die Position des aktuellen Werts – oder 0, falls er nicht in der Liste steht.
+                return liste.index(wert) if wert in liste else 0
+
+            with st.container(border=True):
+                with st.form("buchung_bearbeiten"):
+                    # value=... füllt jedes Feld mit dem bisherigen Wert vor
+                    e_datum = st.date_input("Datum", value=datetime.date.fromisoformat(gewaehlt["datum"]))
+                    e_betrag = st.number_input("Betrag (€)", min_value=0.01, step=10.0, value=float(gewaehlt["betrag"]))
+                    e_kategorie = st.text_input("Kategorie", value=gewaehlt["kategorie"])
+                    e_typ = st.selectbox("Typ", TYPEN, index=_pos(TYPEN, gewaehlt["typ"]))
+                    e_konto = st.selectbox("Konto", KONTEN, index=_pos(KONTEN, gewaehlt["konto"]))
+                    e_partner = st.text_input("Geschäftspartner", value=gewaehlt["partner"] or "")
+                    e_kostenstelle = st.selectbox("Kostenstelle", KOSTENSTELLEN, index=_pos(KOSTENSTELLEN, gewaehlt["kostenstelle"]))
+                    e_bezahlt = st.checkbox("Bereits bezahlt?", value=bool(gewaehlt["bezahlt"]))
+                    e_beschreibung = st.text_input("Beschreibung", value=gewaehlt["beschreibung"] or "")
+
+                    # Zwei Buttons nebeneinander: Speichern (PUT) und Löschen (DELETE)
+                    sp_speichern, sp_loeschen = st.columns(2)
+                    btn_speichern = sp_speichern.form_submit_button("💾 Änderungen speichern", use_container_width=True)
+                    btn_loeschen = sp_loeschen.form_submit_button("🗑️ Löschen", use_container_width=True)
+
+            # Reaktion auf "Speichern": schickt die geänderten Daten per PUT ans Backend
+            if btn_speichern:
+                daten = {
+                    "datum": e_datum.isoformat(), "betrag": e_betrag, "kategorie": e_kategorie,
+                    "typ": e_typ, "beschreibung": e_beschreibung, "konto": e_konto,
+                    "partner": e_partner, "kostenstelle": e_kostenstelle, "bezahlt": e_bezahlt,
+                }
+                antwort = requests.put(f"{API_URL}/buchungen/{gewaehlt['id']}", json=daten)
+                if antwort.status_code == 200:
+                    st.toast("Buchung aktualisiert!")
+                    st.rerun()   # Seite neu laden -> Tabelle zeigt sofort die Änderung
+                else:
+                    st.error(f"Fehler: {antwort.text}")
+
+            # Reaktion auf "Löschen": schickt ein DELETE ans Backend
+            if btn_loeschen:
+                antwort = requests.delete(f"{API_URL}/buchungen/{gewaehlt['id']}")
+                if antwort.status_code == 200:
+                    st.toast("Buchung gelöscht!")
+                    st.rerun()
+                else:
+                    st.error(f"Fehler: {antwort.text}")
+        else:
+            st.info("Noch keine Buchungen zum Bearbeiten vorhanden.")
 
     # --- TAB: DASHBOARD (vertiefte KPIs) ---
     with tab_dashboard:
@@ -197,7 +271,7 @@ if st.session_state.rolle == "Admin":
                 st.pyplot(fig3)
                 plt.close(fig3)
             else:
-                st.info("Kein Cashflow vorhanden.") 
+                st.info("Kein Cashflow vorhanden.")
 
     # --- TAB: ANALYSEN (tiefe KPIs) ---
     with tab_analysen:
@@ -248,7 +322,7 @@ if st.session_state.rolle == "Admin":
                 st.pyplot(fig)
                 plt.close(fig)
             else:
-                st.info("Keine Kostenstellen-Daten.")           
+                st.info("Keine Kostenstellen-Daten.")
 
     # --- TAB 2: GUV & DIAGRAMM ---
     with tab_guv:
@@ -275,7 +349,7 @@ if st.session_state.rolle == "Admin":
         fig, ax = plt.subplots(figsize=(8, 3))
         ax.bar(["Einnahmen", "Ausgaben"], [guv["einnahmen"], guv["ausgaben"]], color=["#2e7d32", "#c62828"])
         ax.set_ylabel("Euro")
-        
+
         # Design-Anpassungen für den Matplotlib-Chart
         fig.patch.set_alpha(0.0)  # Hintergrund transparent
         ax.patch.set_alpha(0.0)
@@ -284,14 +358,14 @@ if st.session_state.rolle == "Admin":
         ax.tick_params(colors='gray')
         ax.spines['bottom'].set_color('gray')
         ax.spines['left'].set_color('gray')
-        
+
         st.pyplot(fig)
 
     # --- TAB 3: FORECAST ---
     with tab_forecast:
         st.subheader("Prognose")
         st.info("Basierend auf dem durchschnittlichen Tagestrend der bisherigen Daten wird die Entwicklung für die nächsten 30 Tage prognostiziert.")
-        
+
         with st.container(border=True):
             forecast = requests.get(f"{API_URL}/auswertung/forecast").json()
             f1, f2, f3 = st.columns(3)
@@ -302,14 +376,14 @@ if st.session_state.rolle == "Admin":
     # --- TAB 4: BILANZ (Refactored) ---
     with tab_bilanz:
         st.subheader("Bilanzübersicht")
-        
+
         # 1. Stichtag in einer schönen Spalte
         col_stichtag, col_status = st.columns([2, 1])
         with col_stichtag:
             stichtag = st.date_input("Stichtag wählen", value=datetime.date.today())
-        
+
         bilanz = requests.get(f"{API_URL}/auswertung/bilanz", params={"stichtag": stichtag.isoformat()}).json()
-        
+
         # 2. Status-Indikator
         with col_status:
             if abs(bilanz['aktiva'] - bilanz['passiva']) < 0.01:
@@ -321,9 +395,9 @@ if st.session_state.rolle == "Admin":
         m1, m2 = st.columns(2)
         m1.metric("Summe Aktiva", f"{bilanz['aktiva']:.2f} €")
         m2.metric("Summe Passiva", f"{bilanz['passiva']:.2f} €")
-        
+
         st.divider()
-        
+
         # 4. Details als saubere Tabelle statt JSON
         st.write("Detaillierte Kontenübersicht:")
         df_details = pd.DataFrame(list(bilanz['details'].items()), columns=["Konto", "Stand (€)"])
@@ -334,7 +408,7 @@ if st.session_state.rolle == "Admin":
 # ---------------------------------------------------------------
 else:
     st.info("Du bist als User angemeldet. Die Auswertungen sind Administratoren vorbehalten.")
-    
+
     # Formular zentriert darstellen
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:

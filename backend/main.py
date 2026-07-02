@@ -1,13 +1,31 @@
-from fastapi import FastAPI
-from backend.models import Buchung, BuchungCreate, GuVErgebnis, ForecastErgebnis, BilanzErgebnis, MonatsWert, CashflowWert, TopPartnerErgebnis, OffenePostenErgebnis
+from fastapi import FastAPI, HTTPException
+from backend.models import Buchung, BuchungCreate, GuVErgebnis, ForecastErgebnis, BilanzErgebnis, MonatsWert, CashflowWert, TopPartnerErgebnis, OffenePostenErgebnis, LoginDaten, LoginErgebnis
 from backend import database, auswertung
 from backend.demo_daten import generiere_demo_buchungen   # NEU
+from backend.config import settings
 
 app = FastAPI(title="Buchungssystem API")
 
 # Beim Start sicherstellen, dass die Tabelle existiert.
 database.init_db()
 
+
+# Für die öffentliche Demo: falls aktiviert und die DB leer ist, einmal Demo-Daten einspielen.
+if settings.auto_seed and not database.alle_buchungen():
+    for b in generiere_demo_buchungen():
+        database.buchung_einfuegen(
+            b["datum"], b["betrag"], b["kategorie"], b["typ"],
+            b["beschreibung"], b["konto"], b["partner"], b["kostenstelle"], b["bezahlt"],
+        )
+
+@app.post("/login", response_model=LoginErgebnis)
+def login(daten: LoginDaten):
+    """Prüft Benutzername + Passwort gegen die Werte aus der Konfiguration."""
+    if daten.benutzername == settings.admin_username and daten.passwort == settings.admin_password:
+        return LoginErgebnis(erfolg=True, rolle="Admin")
+    if daten.benutzername == settings.user_username and daten.passwort == settings.user_password:
+        return LoginErgebnis(erfolg=True, rolle="User")
+    return LoginErgebnis(erfolg=False, rolle=None)
 
 @app.get("/buchungen", response_model=list[Buchung])
 def buchungen_abrufen():
@@ -30,6 +48,39 @@ def buchung_anlegen(buchung: BuchungCreate):
         buchung.bezahlt,
     )
     return Buchung(id=neue_id, **buchung.model_dump())
+
+
+# ---------------------------------------------------------------
+# NEU: Buchung bearbeiten (PUT) und löschen (DELETE)
+# ---------------------------------------------------------------
+
+@app.put("/buchungen/{buchung_id}", response_model=Buchung)
+def buchung_bearbeiten(buchung_id: int, buchung: BuchungCreate):
+    """Ändert eine bestehende Buchung. Gibt 404 zurück, wenn die id nicht existiert."""
+    geaendert = database.buchung_aktualisieren(
+        buchung_id,
+        buchung.datum.isoformat(),
+        buchung.betrag,
+        buchung.kategorie,
+        buchung.typ.value,
+        buchung.beschreibung,
+        buchung.konto.value,
+        buchung.partner,
+        buchung.kostenstelle,
+        buchung.bezahlt,
+    )
+    if not geaendert:
+        raise HTTPException(status_code=404, detail=f"Buchung {buchung_id} nicht gefunden.")
+    return Buchung(id=buchung_id, **buchung.model_dump())
+
+
+@app.delete("/buchungen/{buchung_id}")
+def buchung_entfernen(buchung_id: int):
+    """Löscht eine Buchung. Gibt 404 zurück, wenn die id nicht existiert."""
+    geloescht = database.buchung_loeschen(buchung_id)
+    if not geloescht:
+        raise HTTPException(status_code=404, detail=f"Buchung {buchung_id} nicht gefunden.")
+    return {"geloescht": buchung_id}
 
 
 # NEU: Demo-Daten in die Datenbank laden (nur wenn noch leer)

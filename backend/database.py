@@ -40,6 +40,29 @@ def alle_buchungen():
         return [dict(row) for row in rows]
 
 
+# ---------------------------------------------------------------
+# NEU: Buchung ändern und löschen
+# ---------------------------------------------------------------
+
+"""Ändert eine bestehende Buchung. Gibt True zurück, wenn wirklich eine Zeile geändert wurde."""
+def buchung_aktualisieren(id, datum, betrag, kategorie, typ, beschreibung, konto, partner="", kostenstelle="", bezahlt=True):
+    with sqlite3.connect(DB_PFAD) as conn:
+        cursor = conn.execute(
+            """UPDATE buchungen
+               SET datum=?, betrag=?, kategorie=?, typ=?, beschreibung=?, konto=?, partner=?, kostenstelle=?, bezahlt=?
+               WHERE id=?""",
+            (datum, betrag, kategorie, typ, beschreibung, konto, partner, kostenstelle, int(bezahlt), id),
+        )
+        # rowcount = Anzahl geänderter Zeilen. 0 heißt: diese id gab es gar nicht.
+        return cursor.rowcount > 0
+
+"""Löscht eine Buchung anhand ihrer id. Gibt True zurück, wenn etwas gelöscht wurde."""
+def buchung_loeschen(id):
+    with sqlite3.connect(DB_PFAD) as conn:
+        cursor = conn.execute("DELETE FROM buchungen WHERE id=?", (id,))
+        return cursor.rowcount > 0
+
+
 # Kleiner Selbsttest: nur, wenn man diese Datei direkt ausführt.
 if __name__ == "__main__":
     init_db()
