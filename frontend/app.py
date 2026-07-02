@@ -4,6 +4,7 @@ import pandas as pd
 import requests
 import streamlit as st
 import os
+import plotly.express as px
 
 API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
@@ -222,16 +223,13 @@ if st.session_state.rolle == "Admin":
         st.markdown("**Monatsentwicklung**")
         if monatsdaten:
             df_m = pd.DataFrame(monatsdaten)
-            fig1, ax1 = plt.subplots(figsize=(9, 3.5))
-            ax1.plot(df_m["monat"], df_m["einnahmen"], marker="o", label="Einnahmen", color="#2e7d32")
-            ax1.plot(df_m["monat"], df_m["ausgaben"], marker="o", label="Ausgaben", color="#c62828")
-            ax1.set_ylabel("Euro")
-            ax1.legend()
-            ax1.tick_params(axis="x", rotation=45)
-            fig1.patch.set_alpha(0.0); ax1.patch.set_alpha(0.0)
-            ax1.spines["top"].set_visible(False); ax1.spines["right"].set_visible(False)
-            st.pyplot(fig1)
-            plt.close(fig1)
+            fig1 = px.line(
+                df_m, x="monat", y=["einnahmen", "ausgaben"], markers=True,
+                labels={"monat": "Monat", "value": "Euro", "variable": ""},
+                color_discrete_map={"einnahmen": "#2e7d32", "ausgaben": "#c62828"},
+            )
+            fig1.update_layout(margin=dict(t=10, b=0, l=0, r=0), legend_title_text="")
+            st.plotly_chart(fig1, use_container_width=True)
         else:
             st.info("Keine Daten für die Monatsentwicklung.")
 
@@ -245,13 +243,13 @@ if st.session_state.rolle == "Admin":
             if ausgaben_kat:
                 df_k = pd.DataFrame(list(ausgaben_kat.items()), columns=["Kategorie", "Betrag"])
                 df_k = df_k.sort_values("Betrag", ascending=True)
-                fig2, ax2 = plt.subplots(figsize=(5, 4))
-                ax2.barh(df_k["Kategorie"], df_k["Betrag"], color="#c62828")
-                ax2.set_xlabel("Euro")
-                fig2.patch.set_alpha(0.0); ax2.patch.set_alpha(0.0)
-                ax2.spines["top"].set_visible(False); ax2.spines["right"].set_visible(False)
-                st.pyplot(fig2)
-                plt.close(fig2)
+                fig2 = px.bar(
+                    df_k, x="Betrag", y="Kategorie", orientation="h",
+                    labels={"Betrag": "Euro", "Kategorie": ""},
+                    color_discrete_sequence=["#c62828"],
+                )
+                fig2.update_layout(margin=dict(t=10, b=0, l=0, r=0))
+                st.plotly_chart(fig2, use_container_width=True)
             else:
                 st.info("Keine Ausgaben erfasst.")
 
@@ -261,15 +259,13 @@ if st.session_state.rolle == "Admin":
             if cashflow:
                 df_c = pd.DataFrame(cashflow)
                 df_c["datum"] = pd.to_datetime(df_c["datum"])
-                fig3, ax3 = plt.subplots(figsize=(5, 4))
-                ax3.plot(df_c["datum"], df_c["kontostand"], color="#1565c0")
-                ax3.fill_between(df_c["datum"], df_c["kontostand"], alpha=0.1, color="#1565c0")
-                ax3.set_ylabel("Euro")
-                ax3.tick_params(axis="x", rotation=45)
-                fig3.patch.set_alpha(0.0); ax3.patch.set_alpha(0.0)
-                ax3.spines["top"].set_visible(False); ax3.spines["right"].set_visible(False)
-                st.pyplot(fig3)
-                plt.close(fig3)
+                fig3 = px.area(
+                    df_c, x="datum", y="kontostand",
+                    labels={"datum": "Datum", "kontostand": "Euro"},
+                    color_discrete_sequence=["#1565c0"],
+                )
+                fig3.update_layout(margin=dict(t=10, b=0, l=0, r=0))
+                st.plotly_chart(fig3, use_container_width=True)
             else:
                 st.info("Kein Cashflow vorhanden.")
 
@@ -313,14 +309,13 @@ if st.session_state.rolle == "Admin":
         with col_r:
             st.markdown("**Kosten nach Kostenstelle**")
             if kostenstellen:
-                fig, ax = plt.subplots(figsize=(5, 4))
-                ax.pie(list(kostenstellen.values()),
-                       labels=list(kostenstellen.keys()),
-                       autopct="%1.1f%%", startangle=90)
-                ax.axis("equal")   # rundes Tortendiagramm statt oval
-                fig.patch.set_alpha(0.0)
-                st.pyplot(fig)
-                plt.close(fig)
+                fig = px.pie(
+                    names=list(kostenstellen.keys()),
+                    values=list(kostenstellen.values()),
+                    hole=0.4,
+                )
+                fig.update_layout(margin=dict(t=10, b=0, l=0, r=0))
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("Keine Kostenstellen-Daten.")
 
@@ -346,20 +341,16 @@ if st.session_state.rolle == "Admin":
         st.divider()
 
         # Diagramm mit transparentem Hintergrund
-        fig, ax = plt.subplots(figsize=(8, 3))
-        ax.bar(["Einnahmen", "Ausgaben"], [guv["einnahmen"], guv["ausgaben"]], color=["#2e7d32", "#c62828"])
-        ax.set_ylabel("Euro")
-
-        # Design-Anpassungen für den Matplotlib-Chart
-        fig.patch.set_alpha(0.0)  # Hintergrund transparent
-        ax.patch.set_alpha(0.0)
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.tick_params(colors='gray')
-        ax.spines['bottom'].set_color('gray')
-        ax.spines['left'].set_color('gray')
-
-        st.pyplot(fig)
+        df_guv = pd.DataFrame({
+            "Typ": ["Einnahmen", "Ausgaben"],
+            "Euro": [guv["einnahmen"], guv["ausgaben"]],
+        })
+        fig = px.bar(
+            df_guv, x="Typ", y="Euro", color="Typ",
+            color_discrete_map={"Einnahmen": "#2e7d32", "Ausgaben": "#c62828"},
+        )
+        fig.update_layout(margin=dict(t=10, b=0, l=0, r=0), showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
 
     # --- TAB 3: FORECAST ---
     with tab_forecast:
