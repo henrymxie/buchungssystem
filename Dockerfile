@@ -24,6 +24,8 @@ ENV MPLCONFIGDIR=/tmp/matplotlib
 # Start-Skript fürs Single-Service-Deployment (z.B. Render) mitkopieren
 COPY start.sh ./start.sh
 
+COPY .streamlit/ ./.streamlit/
+
 # Standard-Startbefehl: Backend + Frontend zusammen.
 # (Lokal überschreibt docker-compose.yml diesen Befehl weiterhin.)
 CMD ["sh", "start.sh"]

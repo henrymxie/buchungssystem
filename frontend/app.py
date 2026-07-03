@@ -1,10 +1,29 @@
 import datetime
-import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import streamlit as st
 import os
 import plotly.express as px
+
+FARBEN = {
+    "einnahmen": "#16a34a",
+    "ausgaben": "#dc2626",
+    "cashflow": "#2563eb",
+    "palette": ["#4f46e5", "#0ea5e9", "#14b8a6", "#f59e0b", "#ec4899", "#8b5cf6", "#10b981"],
+}
+
+def style_fig(fig, hoehe=320):
+    """Gibt allen Charts denselben sauberen, einheitlichen Look."""
+    fig.update_layout(
+        template="plotly_white",
+        height=hoehe,
+        margin=dict(t=10, b=0, l=0, r=0),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="sans-serif", size=13),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title_text=""),
+    )
+    return fig
 
 API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
@@ -214,9 +233,9 @@ if st.session_state.rolle == "Admin":
         marge = (gewinn / einnahmen * 100) if einnahmen > 0 else 0.0
 
         k1, k2, k3 = st.columns(3)
-        k1.metric("Gesamteinnahmen", f"{einnahmen:,.2f} €")
-        k2.metric("Gesamtgewinn", f"{gewinn:,.2f} €")
-        k3.metric("Gewinnmarge", f"{marge:.1f} %")
+        k1.metric("Einnahmen", f"{einnahmen:,.2f} €", border=True)
+        k2.metric("Ausgaben", f"{einnahmen - gewinn:,.2f} €", border=True)
+        k3.metric("Gewinn", f"{gewinn:,.2f} €", delta=f"{marge:.1f} % Marge", border=True)
         st.divider()
 
         # Monatsentwicklung (Zeitreihe)
@@ -226,10 +245,9 @@ if st.session_state.rolle == "Admin":
             fig1 = px.line(
                 df_m, x="monat", y=["einnahmen", "ausgaben"], markers=True,
                 labels={"monat": "Monat", "value": "Euro", "variable": ""},
-                color_discrete_map={"einnahmen": "#2e7d32", "ausgaben": "#c62828"},
+                color_discrete_map={"einnahmen": FARBEN["einnahmen"], "ausgaben": FARBEN["ausgaben"]},
             )
-            fig1.update_layout(margin=dict(t=10, b=0, l=0, r=0), legend_title_text="")
-            st.plotly_chart(fig1, use_container_width=True)
+            st.plotly_chart(style_fig(fig1), use_container_width=True)
         else:
             st.info("Keine Daten für die Monatsentwicklung.")
 
@@ -246,10 +264,9 @@ if st.session_state.rolle == "Admin":
                 fig2 = px.bar(
                     df_k, x="Betrag", y="Kategorie", orientation="h",
                     labels={"Betrag": "Euro", "Kategorie": ""},
-                    color_discrete_sequence=["#c62828"],
+                    color_discrete_sequence=[FARBEN["ausgaben"]],
                 )
-                fig2.update_layout(margin=dict(t=10, b=0, l=0, r=0))
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(style_fig(fig2), use_container_width=True)
             else:
                 st.info("Keine Ausgaben erfasst.")
 
@@ -262,10 +279,9 @@ if st.session_state.rolle == "Admin":
                 fig3 = px.area(
                     df_c, x="datum", y="kontostand",
                     labels={"datum": "Datum", "kontostand": "Euro"},
-                    color_discrete_sequence=["#1565c0"],
+                    color_discrete_sequence=[FARBEN["cashflow"]],
                 )
-                fig3.update_layout(margin=dict(t=10, b=0, l=0, r=0))
-                st.plotly_chart(fig3, use_container_width=True)
+                st.plotly_chart(style_fig(fig3), use_container_width=True)
             else:
                 st.info("Kein Cashflow vorhanden.")
 
@@ -280,9 +296,10 @@ if st.session_state.rolle == "Admin":
         # Offene Posten als Kennzahlen
         st.markdown("**Offene Posten**")
         o1, o2, o3 = st.columns(3)
-        o1.metric("Offene Forderungen", f"{offene['offene_forderungen']:,.2f} €")
-        o2.metric("Offene Verbindlichkeiten", f"{offene['offene_verbindlichkeiten']:,.2f} €")
-        o3.metric("Anzahl offener Posten", offene["anzahl_offen"])
+        o1.metric("Offene Forderungen", f"{offene['offene_forderungen']:,.2f} €", border=True)
+        o2.metric("Offene Verbindlichkeiten", f"{offene['offene_verbindlichkeiten']:,.2f} €", border=True)
+        o3.metric("Anzahl offener Posten", offene["anzahl_offen"], border=True,
+                  help="Buchungen, die noch nicht als bezahlt markiert sind.")
         st.divider()
 
         col_l, col_r = st.columns(2)
@@ -312,10 +329,11 @@ if st.session_state.rolle == "Admin":
                 fig = px.pie(
                     names=list(kostenstellen.keys()),
                     values=list(kostenstellen.values()),
-                    hole=0.4,
+                    hole=0.45,
+                    color_discrete_sequence=FARBEN["palette"],
                 )
-                fig.update_layout(margin=dict(t=10, b=0, l=0, r=0))
-                st.plotly_chart(fig, use_container_width=True)
+                fig.update_traces(textposition="inside", textinfo="percent+label")
+                st.plotly_chart(style_fig(fig), use_container_width=True)
             else:
                 st.info("Keine Kostenstellen-Daten.")
 
@@ -335,9 +353,9 @@ if st.session_state.rolle == "Admin":
 
         st.write("")
         m1, m2, m3 = st.columns(3)
-        m1.metric("Einnahmen", f"{guv['einnahmen']:.2f} €")
-        m2.metric("Ausgaben", f"{guv['ausgaben']:.2f} €")
-        m3.metric("Gewinn", f"{guv['gewinn']:.2f} €")
+        m1.metric("Einnahmen", f"{guv['einnahmen']:.2f} €", border=True)
+        m2.metric("Ausgaben", f"{guv['ausgaben']:.2f} €", border=True)
+        m3.metric("Gewinn", f"{guv['gewinn']:.2f} €", border=True)
         st.divider()
 
         # Diagramm mit transparentem Hintergrund
@@ -347,10 +365,10 @@ if st.session_state.rolle == "Admin":
         })
         fig = px.bar(
             df_guv, x="Typ", y="Euro", color="Typ",
-            color_discrete_map={"Einnahmen": "#2e7d32", "Ausgaben": "#c62828"},
+            color_discrete_map={"Einnahmen": FARBEN["einnahmen"], "Ausgaben": FARBEN["ausgaben"]},
         )
-        fig.update_layout(margin=dict(t=10, b=0, l=0, r=0), showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_traces(showlegend=False)
+        st.plotly_chart(style_fig(fig), use_container_width=True)
 
     # --- TAB 3: FORECAST ---
     with tab_forecast:
@@ -360,9 +378,9 @@ if st.session_state.rolle == "Admin":
         with st.container(border=True):
             forecast = requests.get(f"{API_URL}/auswertung/forecast").json()
             f1, f2, f3 = st.columns(3)
-            f1.metric("Erwartete Einnahmen", f"{forecast['erwartete_einnahmen_30_tage']:.2f} €")
-            f2.metric("Erwartete Ausgaben", f"{forecast['erwartete_ausgaben_30_tage']:.2f} €")
-            f3.metric("Erwarteter Gewinn", f"{forecast['erwarteter_gewinn_30_tage']:.2f} €")
+            f1.metric("Erwartete Einnahmen", f"{forecast['erwartete_einnahmen_30_tage']:.2f} €", border=True)
+            f2.metric("Erwartete Ausgaben", f"{forecast['erwartete_ausgaben_30_tage']:.2f} €", border=True)
+            f3.metric("Erwarteter Gewinn", f"{forecast['erwarteter_gewinn_30_tage']:.2f} €", border=True)
 
     # --- TAB 4: BILANZ (Refactored) ---
     with tab_bilanz:
@@ -384,8 +402,8 @@ if st.session_state.rolle == "Admin":
 
         # 3. KPI-Boxen für Aktiva/Passiva
         m1, m2 = st.columns(2)
-        m1.metric("Summe Aktiva", f"{bilanz['aktiva']:.2f} €")
-        m2.metric("Summe Passiva", f"{bilanz['passiva']:.2f} €")
+        m1.metric("Summe Aktiva", f"{bilanz['aktiva']:.2f} €", border=True)
+        m2.metric("Summe Passiva", f"{bilanz['passiva']:.2f} €", border=True)
 
         st.divider()
 
