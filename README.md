@@ -14,12 +14,6 @@ Zugangsdaten zum Ausprobieren:
 - **Admin** (voller Zugriff auf alle Auswertungen): `hh` / `hh`
 - **User** (nur Datenerfassung): `user` / `meinGeheimesUserPasswort`
 
-## 📸 Screenshots
-
-⟨hier ein bis zwei Screenshots einfügen, z. B. Dashboard und GuV⟩
-
-<!-- Beispiel: ![Dashboard](docs/dashboard.png) -->
-
 ## ✨ Features
 
 - **Rollenbasiertes Login** – Trennung von Admin (volle Analyse) und User (nur Erfassung), geprüft über das Backend.
