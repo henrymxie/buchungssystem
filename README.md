@@ -88,12 +88,6 @@ buchungssystem/
 
 Deployt auf **Render** als einzelner Docker-Container: `start.sh` startet das Backend intern (`uvicorn` auf `127.0.0.1:8000`) und das Frontend öffentlich (`streamlit` auf dem von Render vorgegebenen Port). Jeder Push auf `main` löst automatisch ein neues Deployment aus. Zugangsdaten werden über Umgebungsvariablen gesetzt, nicht im Code hinterlegt.
 
-## 🧭 Roadmap / mögliche Erweiterungen
-
-- [ ] Migration von SQLite zu PostgreSQL für dauerhaft persistente Daten
-- [ ] Automatisierte Tests mit pytest (v. a. für die Auswertungslogik)
-- [ ] Echte Authentifizierung mit Passwort-Hashing (bcrypt) und JWT-Tokens
-
 ## 🤖 KI-Nutzungserklärung
 
 Künstliche Intelligenz wurde gezielt als Pair-Programming-Unterstützung eingesetzt: für Architektur-Diskussionen, das Erklären neuer Werkzeuge (Docker, REST-Semantik, pydantic-settings) und Debugging. Die fachlichen Anforderungen, das Datenmodell und die betriebswirtschaftliche Logik sowie die Integration der einzelnen Bausteine lagen bei mir.
